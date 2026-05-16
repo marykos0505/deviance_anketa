@@ -12,36 +12,22 @@ st.set_page_config(page_title="Оценка риска девиантного п
 @st.cache_data
 def load_region_data():
     df = pd.read_excel('датасет_регионы.xlsx')
-    # Очистка
-    df = df.replace('-', pd.NA).dropna(subset=['регион', 'сумма_нарушений'])
-    df['сумма_нарушений'] = pd.to_numeric(df['сумма_нарушений'], errors='coerce')
-    df = df.dropna(subset=['сумма_нарушений'])
+    # Используем колонки: region, risk_score, risk_level
+    df = df.dropna(subset=['region', 'risk_score'])
     
-    # Нормировка risk_score
-    max_offenses = df['сумма_нарушений'].max()
-    df['risk_score'] = df['сумма_нарушений'] / max_offenses
-    
-    # Словари для быстрого доступа
-    region_risk = dict(zip(df['регион'], df['risk_score']))
-    region_level = dict(zip(df['регион'], df['уровень_риска']))
-    
-    # Список регионов для выпадающего списка
-    region_list = sorted(df['регион'].tolist())
+    region_risk = dict(zip(df['region'], df['risk_score']))
+    region_level = dict(zip(df['region'], df['risk_level']))
+    region_list = sorted(df['region'].tolist())
     
     return region_risk, region_level, region_list
 
-# Загружаем данные
 REGION_RISK, REGION_LEVEL, REGION_LIST = load_region_data()
 
-print(f"✅ Загружено {len(REGION_LIST)} регионов")
-print(f"   Диапазон риска: {min(REGION_RISK.values()):.3f} - {max(REGION_RISK.values()):.3f}")
-
 # ============================================================
-# КОНТАКТЫ СЛУЖБ ПО РЕГИОНАМ
+# КОНТАКТЫ СЛУЖБ ПО РЕГИОНАМ (расширяй по желанию)
 # ============================================================
 
 SERVICES_DB = {
-    # Центральный федеральный округ
     "Московская область": {
         "child_helpline": "8-800-2000-122",
         "psychology": "8-495-624-60-01",
@@ -49,33 +35,19 @@ SERVICES_DB = {
         "emergency": "112",
         "local_center": "Центр 'Доверие' (Москва, ул. Новослободская, 45)"
     },
-    "г. Москва": {
-        "child_helpline": "8-800-2000-122",
-        "psychology": "8-495-624-60-01",
-        "social": "8-495-608-65-06",
-        "emergency": "112",
-        "local_center": "Московская служба психологической помощи (ул. Селезнёвская, 11)"
-    },
-    "г. Санкт-Петербург": {
+    "г.Санкт-Петербург и Ленинградская область": {
         "child_helpline": "8-800-2000-122",
         "psychology": "8-812-718-22-16",
         "social": "8-812-576-10-15",
         "emergency": "112",
         "local_center": "Центр 'Анна' (СПб, наб. реки Фонтанки, 120)"
     },
-    "Ленинградская область": {
-        "child_helpline": "8-800-2000-122",
-        "psychology": "8-812-718-22-16",
-        "social": "8-812-576-10-15",
-        "emergency": "112",
-        "local_center": "Ленинградский областной центр психологической помощи"
-    },
     "Республика Татарстан": {
         "child_helpline": "8-800-2000-122",
         "psychology": "8-843-279-26-00",
         "social": "8-843-236-62-67",
         "emergency": "112",
-        "local_center": "Республиканский центр психологической поддержки (Казань, ул. Кремлевская, 33)"
+        "local_center": "Республиканский центр психологической поддержки (Казань)"
     },
     "Краснодарский край": {
         "child_helpline": "8-800-2000-122",
@@ -84,44 +56,21 @@ SERVICES_DB = {
         "emergency": "112",
         "local_center": "Центр 'Доверие' (Краснодар, ул. Северная, 405)"
     },
-    "Новосибирская область": {
-        "child_helpline": "8-800-2000-122",
-        "psychology": "8-383-223-22-33",
-        "social": "8-383-223-22-33",
-        "emergency": "112",
-        "local_center": "Новосибирский центр психологической помощи"
-    },
-    "Свердловская область": {
-        "child_helpline": "8-800-2000-122",
-        "psychology": "8-343-370-70-70",
-        "social": "8-343-370-70-70",
-        "emergency": "112",
-        "local_center": "Центр социальной помощи 'Апрель' (Екатеринбург)"
-    },
-    "Республика Ингушетия": {
-        "child_helpline": "8-800-2000-122",
-        "psychology": "8-873-222-22-55",
-        "social": "8-873-222-22-55",
-        "emergency": "112",
-        "local_center": "Центр психологической помощи (Магас)"
-    },
 }
 
 def get_services(region):
-    """Возвращает контакты служб для региона"""
     if region in SERVICES_DB:
         return SERVICES_DB[region]
-    else:
-        return {
-            "child_helpline": "8-800-2000-122",
-            "psychology": "8-800-250-00-88",
-            "social": "8-800-700-88-88",
-            "emergency": "112",
-            "local_center": "Центр социальной помощи (федеральный)"
-        }
+    return {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-800-250-00-88",
+        "social": "8-800-700-88-88",
+        "emergency": "112",
+        "local_center": "Центр социальной помощи (федеральный)"
+    }
 
 # ============================================================
-# FUZZY-МОДЕЛЬ
+# ОСТАЛЬНАЯ ЧАСТЬ МОДЕЛИ (FUZZY)
 # ============================================================
 
 def create_left(b, c):
@@ -147,7 +96,7 @@ def create_right(b, c):
         else: return 1.0
     return func
 
-# Функции принадлежности
+# Категории
 internet_low = create_left(15, 35)
 internet_medium = create_trap(20, 35, 50, 65)
 internet_high = create_right(50, 70)
@@ -269,7 +218,7 @@ def get_recommendations(scores, risk_level, risk_percent):
     return recommendations
 
 # ============================================================
-# ВОПРОСЫ АНКЕТЫ
+# ВОПРОСЫ
 # ============================================================
 
 def question_block(category, questions):
@@ -283,57 +232,50 @@ def question_block(category, questions):
 questions_internet = [
     {"id": 1, "text": "Сколько часов в день ты проводишь в интернете?", "options": ["0-2ч", "3-4ч", "5-6ч", "7-8ч", "9+ч"], "scores": [0, 5, 10, 15, 20]},
     {"id": 2, "text": "На какие паблики/каналы ты подписан?", "options": ["Образовательные", "Юмор", "Черный юмор", "Агрессия", "Экстремизм"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 3, "text": "Сколько у тебя интернет-друзей (не из реальной жизни)?", "options": ["0", "1-2", "3-5", "6-10", "10+"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 4, "text": "Участвовал ли ты в сомнительных онлайн-челленджах?", "options": ["Никогда", "Слышал, но нет", "1 раз", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 5, "text": "Сколько у тебя анонимных аккаунтов?", "options": ["0", "1", "2-3", "4-5", "5+"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 3, "text": "Сколько у тебя интернет-друзей?", "options": ["0", "1-2", "3-5", "6-10", "10+"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 4, "text": "Участвовал в сомнительных челленджах?", "options": ["Никогда", "Слышал", "1 раз", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 5, "text": "Анонимных аккаунтов?", "options": ["0", "1", "2-3", "4-5", "5+"], "scores": [0, 5, 10, 15, 20]},
 ]
 
 questions_cyber = [
-    {"id": 1, "text": "Оскорблял ли ты кого-то в интернете?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 2, "text": "Участвовал ли ты в травле (буллинге) онлайн?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 3, "text": "Был ли ты жертвой травли в интернете?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 4, "text": "Получал ли ты угрозы в интернете?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 5, "text": "Распространял ли ты слухи/фейки о ком-то?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 1, "text": "Оскорблял кого-то в интернете?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 2, "text": "Участвовал в травле онлайн?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 3, "text": "Был жертвой травли?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 4, "text": "Получал угрозы?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 5, "text": "Распространял слухи/фейки?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
 ]
 
 questions_psycho = [
-    {"id": 1, "text": "Как часто ты чувствуешь одиночество?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 2, "text": "Бывают ли у тебя мысли, что ты никому не нужен?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 3, "text": "Как часто у тебя бывают вспышки гнева/агрессии?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 4, "text": "Есть ли у тебя проблемы со сном?", "options": ["Нет", "Редко", "Иногда", "Часто", "Почти всегда"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 5, "text": "Были ли у тебя мысли причинить вред себе или другим?", "options": ["Никогда", "Были, но не серьезно", "Серьезные мысли", "Планировал", "Были попытки"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 1, "text": "Чувство одиночества?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 2, "text": "Мысли 'я никому не нужен'?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 3, "text": "Вспышки гнева?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 4, "text": "Проблемы со сном?", "options": ["Нет", "Редко", "Иногда", "Часто", "Почти всегда"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 5, "text": "Мысли о вреде себе/другим?", "options": ["Никогда", "Были не серьёзно", "Серьёзные", "Планировал", "Попытки"], "scores": [0, 5, 10, 15, 20]},
 ]
 
 questions_behavior = [
-    {"id": 1, "text": "Как часто ты прогуливаешь школу?", "options": ["Никогда", "1-2р/мес", "Раз/нед", "2-3р/нед", "Почти ежедневно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 2, "text": "Бывают ли у тебя конфликты с учителями?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 3, "text": "Есть ли у тебя друзья, которые нарушают закон?", "options": ["Нет", "1 друг", "2-3 друга", "Много", "Все друзья"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 4, "text": "Участвовал ли ты в драках?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько раз", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 5, "text": "Забирали ли тебя в полицию?", "options": ["Нет", "1 раз", "2-3 раза", "Несколько раз", "Стою на учёте"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 1, "text": "Прогулы школы?", "options": ["Никогда", "1-2р/мес", "Раз/нед", "2-3р/нед", "Почти ежедневно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 2, "text": "Конфликты с учителями?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 3, "text": "Друзья нарушают закон?", "options": ["Нет", "1 друг", "2-3 друга", "Много", "Все"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 4, "text": "Участие в драках?", "options": ["Никогда", "1 раз", "2-3 раза", "Несколько", "Регулярно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 5, "text": "Забирали в полицию?", "options": ["Нет", "1 раз", "2-3 раза", "Несколько", "На учёте"], "scores": [0, 5, 10, 15, 20]},
 ]
 
 questions_family = [
-    {"id": 1, "text": "С кем ты живешь?", "options": ["С обоими родителями", "С одним родителем", "С родственниками", "С опекунами", "В интернате"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 2, "text": "Как часто бывают конфликты с родителями?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 3, "text": "Насколько родители контролируют твою жизнь?", "options": ["Полностью", "Частично", "Минимально", "Почти нет", "Совсем нет"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 4, "text": "Есть ли в семье проблемы с алкоголем/наркотиками?", "options": ["Нет", "Не уверен", "Дальние родственники", "Близкий родственник", "Родители"], "scores": [0, 5, 10, 15, 20]},
-    {"id": 5, "text": "Какой уровень дохода в семье?", "options": ["Высокий", "Средний", "Ниже среднего", "Низкий", "Очень низкий"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 1, "text": "С кем живёшь?", "options": ["Оба родителя", "Один родитель", "Родственники", "Опекуны", "Интернат"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 2, "text": "Конфликты с родителями?", "options": ["Никогда", "Редко", "Иногда", "Часто", "Постоянно"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 3, "text": "Контроль родителей?", "options": ["Полный", "Частичный", "Минимальный", "Почти нет", "Нет"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 4, "text": "Алкоголь/наркотики в семье?", "options": ["Нет", "Не уверен", "Дальние", "Близкие", "Родители"], "scores": [0, 5, 10, 15, 20]},
+    {"id": 5, "text": "Доход семьи?", "options": ["Высокий", "Средний", "Ниже среднего", "Низкий", "Очень низкий"], "scores": [0, 5, 10, 15, 20]},
 ]
 
 # ============================================================
-# СТИЛИ
+# ИНТЕРФЕЙС
 # ============================================================
 
 st.markdown("""
 <style>
-    .main-title {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 20px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
+    .main-title { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 20px; color: white; text-align: center; margin-bottom: 2rem; }
     .risk-high { background: linear-gradient(135deg, #ff6b6b, #ee5a24); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
     .risk-medium { background: linear-gradient(135deg, #ffa502, #e67e22); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
     .risk-low { background: linear-gradient(135deg, #2ed573, #00b894); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
@@ -341,19 +283,13 @@ st.markdown("""
     .rec-critical { border-left: 4px solid #ee5a24; background: #fff5f0; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
     .rec-warning { border-left: 4px solid #ffa502; background: #fffbf0; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
     .rec-info { border-left: 4px solid #1e90ff; background: #f0f8ff; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-    .rec-success { border-left: 4px solid #00b894; background: #f0fff4; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
     .sidebar-info { background: #f8f9fa; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
     .card { background: white; padding: 1.5rem; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 1rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
-# ИНТЕРФЕЙС
-# ============================================================
-
 st.markdown('<div class="main-title"><h1>🧠 Оценка риска девиантного поведения</h1><p>Анонимная анкета для подростков 10-18 лет</p></div>', unsafe_allow_html=True)
 
-# Боковая панель
 with st.sidebar:
     st.markdown("### 📞 Контакты (федеральные)")
     st.markdown('<div class="sidebar-info"><strong>8-800-2000-122</strong><br>Детский телефон доверия</div>', unsafe_allow_html=True)
@@ -361,18 +297,16 @@ with st.sidebar:
     st.markdown('<div class="sidebar-info"><strong>112</strong><br>Экстренная помощь</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.caption(f"✅ Загружено {len(REGION_LIST)} регионов")
-    st.caption("Все данные анонимны. Результат не является медицинским диагнозом.")
 
-# Форма
 with st.form("anketa"):
     st.markdown('<div class="card"><h3>📋 Личная информация</h3>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        age = st.number_input("Возраст", min_value=10, max_value=18, value=14, step=1)
+        age = st.number_input("Возраст", 10, 18, 14)
     with col2:
         gender = st.selectbox("Пол", ["Мужской", "Женский"])
     with col3:
-        region = st.selectbox("Регион проживания", REGION_LIST)
+        region = st.selectbox("Регион", REGION_LIST)
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="card"><h3>🌐 Интернет-активность (5 вопросов)</h3>', unsafe_allow_html=True)
@@ -387,7 +321,7 @@ with st.form("anketa"):
     psycho_score = question_block("psycho", questions_psycho)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    st.markdown('<div class="card"><h3>👊 Поведение в реальной жизни (5 вопросов)</h3>', unsafe_allow_html=True)
+    st.markdown('<div class="card"><h3>👊 Поведение (5 вопросов)</h3>', unsafe_allow_html=True)
     behavior_score = question_block("behavior", questions_behavior)
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -398,40 +332,29 @@ with st.form("anketa"):
     submitted = st.form_submit_button("📊 Получить результат", use_container_width=True, type="primary")
     
     if submitted:
-        with st.spinner("Анализируем ответы..."):
+        with st.spinner("Анализируем..."):
             result = evaluate_risk(region, internet_score, cyber_score, psycho_score, behavior_score, family_score)
             
-            # Возрастная корректировка
             if 14 <= age <= 16:
                 result['risk_percent'] = min(100, result['risk_percent'] * 1.1)
             elif age <= 12:
                 result['risk_percent'] = result['risk_percent'] * 0.8
             
-            scores = {
-                'internet': internet_score,
-                'cyber': cyber_score,
-                'psycho': psycho_score,
-                'behavior': behavior_score,
-                'family': family_score
-            }
-            
+            scores = {'internet': internet_score, 'cyber': cyber_score, 'psycho': psycho_score, 'behavior': behavior_score, 'family': family_score}
             recommendations = get_recommendations(scores, result['risk_level'], result['risk_percent'])
+            services = get_services(region)
+            region_level = REGION_LEVEL.get(region, 'средний')
+            region_icon = "🔴" if region_level == 'high' else "🟡" if region_level == 'medium' else "🟢"
             
             st.markdown("---")
-            st.markdown("## 📊 Результат оценки")
-            
-            # Результат
-            region_level = REGION_LEVEL.get(region, 'средний')
-            region_icon = "🔴" if region_level == 'высокий' else "🟡" if region_level == 'средний' else "🟢"
             
             if result['risk_level'] == 'high':
-                st.markdown(f'<div class="risk-high"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🔴 ВЫСОКИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}% ({region_level})</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="risk-high"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🔴 ВЫСОКИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}%</div></div>', unsafe_allow_html=True)
             elif result['risk_level'] == 'medium':
-                st.markdown(f'<div class="risk-medium"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟡 СРЕДНИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}% ({region_level})</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="risk-medium"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟡 СРЕДНИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}%</div></div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="risk-low"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟢 НИЗКИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}% ({region_level})</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="risk-low"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟢 НИЗКИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}%</div></div>', unsafe_allow_html=True)
             
-            # График
             fig, ax = plt.subplots(figsize=(8, 5))
             categories = ['Интернет', 'Кибербуллинг', 'Психология', 'Поведение', 'Семья']
             values = [internet_score, cyber_score, psycho_score, behavior_score, family_score]
@@ -446,8 +369,7 @@ with st.form("anketa"):
                 ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2, f'{val}', ha='center', fontsize=11, fontweight='bold')
             st.pyplot(fig)
             
-            # Рекомендации
-            st.markdown("## 💡 Персональные рекомендации")
+            st.markdown("## 💡 Рекомендации")
             for rec in recommendations:
                 if rec['type'] == 'critical':
                     st.markdown(f'<div class="rec-critical"><strong>{rec["title"]}</strong><br>{rec["text"]}</div>', unsafe_allow_html=True)
@@ -458,8 +380,6 @@ with st.form("anketa"):
                 else:
                     st.markdown(f'<div class="rec-success"><strong>{rec["title"]}</strong><br>{rec["text"]}</div>', unsafe_allow_html=True)
             
-            # Контакты служб ПО РЕГИОНУ
-            services = get_services(region)
             st.markdown("## 📞 Куда обратиться в вашем регионе")
             st.markdown(f"""
             <div style="background: #f0f4ff; padding: 1.5rem; border-radius: 16px;">
