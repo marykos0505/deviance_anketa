@@ -6,35 +6,122 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Оценка риска девиантного поведения", layout="wide")
 
 # ============================================================
-# СТИЛИ
+# ЗАГРУЗКА РЕГИОНОВ ИЗ ФАЙЛА
 # ============================================================
 
-st.markdown("""
-<style>
-    .main-title {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 20px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .risk-high { background: linear-gradient(135deg, #ff6b6b, #ee5a24); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
-    .risk-medium { background: linear-gradient(135deg, #ffa502, #e67e22); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
-    .risk-low { background: linear-gradient(135deg, #2ed573, #00b894); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
-    .risk-percent { font-size: 4rem; font-weight: bold; }
-    .rec-critical { border-left: 4px solid #ee5a24; background: #fff5f0; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-    .rec-warning { border-left: 4px solid #ffa502; background: #fffbf0; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-    .rec-info { border-left: 4px solid #1e90ff; background: #f0f8ff; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-    .rec-success { border-left: 4px solid #00b894; background: #f0fff4; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-    .sidebar-info { background: #f8f9fa; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-    .card { background: white; padding: 1.5rem; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 1rem; }
-    .question-card { background: #f8f9fa; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
-</style>
-""", unsafe_allow_html=True)
+@st.cache_data
+def load_region_data():
+    df = pd.read_excel('датасет_регионы.xlsx')
+    # Очистка
+    df = df.replace('-', pd.NA).dropna(subset=['регион', 'сумма_нарушений'])
+    df['сумма_нарушений'] = pd.to_numeric(df['сумма_нарушений'], errors='coerce')
+    df = df.dropna(subset=['сумма_нарушений'])
+    
+    # Нормировка risk_score
+    max_offenses = df['сумма_нарушений'].max()
+    df['risk_score'] = df['сумма_нарушений'] / max_offenses
+    
+    # Словари для быстрого доступа
+    region_risk = dict(zip(df['регион'], df['risk_score']))
+    region_level = dict(zip(df['регион'], df['уровень_риска']))
+    
+    # Список регионов для выпадающего списка
+    region_list = sorted(df['регион'].tolist())
+    
+    return region_risk, region_level, region_list
+
+# Загружаем данные
+REGION_RISK, REGION_LEVEL, REGION_LIST = load_region_data()
+
+print(f"✅ Загружено {len(REGION_LIST)} регионов")
+print(f"   Диапазон риска: {min(REGION_RISK.values()):.3f} - {max(REGION_RISK.values()):.3f}")
 
 # ============================================================
-# МОДЕЛЬ (fuzzy-логика)
+# КОНТАКТЫ СЛУЖБ ПО РЕГИОНАМ
+# ============================================================
+
+SERVICES_DB = {
+    # Центральный федеральный округ
+    "Московская область": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-495-624-60-01",
+        "social": "8-495-608-65-06",
+        "emergency": "112",
+        "local_center": "Центр 'Доверие' (Москва, ул. Новослободская, 45)"
+    },
+    "г. Москва": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-495-624-60-01",
+        "social": "8-495-608-65-06",
+        "emergency": "112",
+        "local_center": "Московская служба психологической помощи (ул. Селезнёвская, 11)"
+    },
+    "г. Санкт-Петербург": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-812-718-22-16",
+        "social": "8-812-576-10-15",
+        "emergency": "112",
+        "local_center": "Центр 'Анна' (СПб, наб. реки Фонтанки, 120)"
+    },
+    "Ленинградская область": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-812-718-22-16",
+        "social": "8-812-576-10-15",
+        "emergency": "112",
+        "local_center": "Ленинградский областной центр психологической помощи"
+    },
+    "Республика Татарстан": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-843-279-26-00",
+        "social": "8-843-236-62-67",
+        "emergency": "112",
+        "local_center": "Республиканский центр психологической поддержки (Казань, ул. Кремлевская, 33)"
+    },
+    "Краснодарский край": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-861-214-58-88",
+        "social": "8-861-214-58-00",
+        "emergency": "112",
+        "local_center": "Центр 'Доверие' (Краснодар, ул. Северная, 405)"
+    },
+    "Новосибирская область": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-383-223-22-33",
+        "social": "8-383-223-22-33",
+        "emergency": "112",
+        "local_center": "Новосибирский центр психологической помощи"
+    },
+    "Свердловская область": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-343-370-70-70",
+        "social": "8-343-370-70-70",
+        "emergency": "112",
+        "local_center": "Центр социальной помощи 'Апрель' (Екатеринбург)"
+    },
+    "Республика Ингушетия": {
+        "child_helpline": "8-800-2000-122",
+        "psychology": "8-873-222-22-55",
+        "social": "8-873-222-22-55",
+        "emergency": "112",
+        "local_center": "Центр психологической помощи (Магас)"
+    },
+}
+
+def get_services(region):
+    """Возвращает контакты служб для региона"""
+    if region in SERVICES_DB:
+        return SERVICES_DB[region]
+    else:
+        return {
+            "child_helpline": "8-800-2000-122",
+            "psychology": "8-800-250-00-88",
+            "social": "8-800-700-88-88",
+            "emergency": "112",
+            "local_center": "Центр социальной помощи (федеральный)"
+        }
+
+# ============================================================
+# FUZZY-МОДЕЛЬ
 # ============================================================
 
 def create_left(b, c):
@@ -109,14 +196,6 @@ RULES = [
     {'conditions': [('internet', 'low'), ('cyber', 'low'), ('psycho', 'low')], 'result': 'low'},
 ]
 
-REGION_RISK = {
-    'Республика Татарстан': 0.95, 'Республика Ингушетия': 0.05,
-    'Московская область': 0.72, 'Краснодарский край': 0.55,
-    'г. Санкт-Петербург': 0.48, 'Республика Адыгея': 0.02,
-    'Свердловская область': 0.65, 'Новосибирская область': 0.60,
-    'Челябинская область': 0.82, 'Иркутская область': 0.88,
-}
-
 def evaluate_risk(region, internet_score, cyber_score, psycho_score, behavior_score, family_score):
     region_risk = REGION_RISK.get(region, 0.5)
     
@@ -166,7 +245,7 @@ def evaluate_risk(region, internet_score, cyber_score, psycho_score, behavior_sc
     
     return {'risk_percent': round(risk_percent, 1), 'risk_level': risk_level, 'region_risk_score': region_risk}
 
-def get_detailed_recommendations(scores, risk_level, risk_percent, age, gender):
+def get_recommendations(scores, risk_level, risk_percent):
     recommendations = []
     
     if risk_level == "high":
@@ -190,7 +269,7 @@ def get_detailed_recommendations(scores, risk_level, risk_percent, age, gender):
     return recommendations
 
 # ============================================================
-# ФУНКЦИИ ДЛЯ СБОРА ОТВЕТОВ
+# ВОПРОСЫ АНКЕТЫ
 # ============================================================
 
 def question_block(category, questions):
@@ -201,7 +280,6 @@ def question_block(category, questions):
         scores.append(answer_map[answer])
     return sum(scores)
 
-# Вопросы по категориям
 questions_internet = [
     {"id": 1, "text": "Сколько часов в день ты проводишь в интернете?", "options": ["0-2ч", "3-4ч", "5-6ч", "7-8ч", "9+ч"], "scores": [0, 5, 10, 15, 20]},
     {"id": 2, "text": "На какие паблики/каналы ты подписан?", "options": ["Образовательные", "Юмор", "Черный юмор", "Агрессия", "Экстремизм"], "scores": [0, 5, 10, 15, 20]},
@@ -243,6 +321,33 @@ questions_family = [
 ]
 
 # ============================================================
+# СТИЛИ
+# ============================================================
+
+st.markdown("""
+<style>
+    .main-title {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 20px;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .risk-high { background: linear-gradient(135deg, #ff6b6b, #ee5a24); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
+    .risk-medium { background: linear-gradient(135deg, #ffa502, #e67e22); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
+    .risk-low { background: linear-gradient(135deg, #2ed573, #00b894); padding: 2rem; border-radius: 20px; text-align: center; color: white; }
+    .risk-percent { font-size: 4rem; font-weight: bold; }
+    .rec-critical { border-left: 4px solid #ee5a24; background: #fff5f0; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
+    .rec-warning { border-left: 4px solid #ffa502; background: #fffbf0; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
+    .rec-info { border-left: 4px solid #1e90ff; background: #f0f8ff; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
+    .rec-success { border-left: 4px solid #00b894; background: #f0fff4; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
+    .sidebar-info { background: #f8f9fa; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; }
+    .card { background: white; padding: 1.5rem; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 1rem; }
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
 # ИНТЕРФЕЙС
 # ============================================================
 
@@ -250,11 +355,12 @@ st.markdown('<div class="main-title"><h1>🧠 Оценка риска девиа
 
 # Боковая панель
 with st.sidebar:
-    st.markdown("### 📞 Телефоны доверия")
+    st.markdown("### 📞 Контакты (федеральные)")
     st.markdown('<div class="sidebar-info"><strong>8-800-2000-122</strong><br>Детский телефон доверия</div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-info"><strong>8-800-250-00-88</strong><br>Психологическая помощь</div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-info"><strong>112</strong><br>Экстренная помощь</div>', unsafe_allow_html=True)
     st.markdown("---")
+    st.caption(f"✅ Загружено {len(REGION_LIST)} регионов")
     st.caption("Все данные анонимны. Результат не является медицинским диагнозом.")
 
 # Форма
@@ -266,7 +372,7 @@ with st.form("anketa"):
     with col2:
         gender = st.selectbox("Пол", ["Мужской", "Женский"])
     with col3:
-        region = st.selectbox("Регион проживания", list(REGION_RISK.keys()))
+        region = st.selectbox("Регион проживания", REGION_LIST)
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="card"><h3>🌐 Интернет-активность (5 вопросов)</h3>', unsafe_allow_html=True)
@@ -295,7 +401,7 @@ with st.form("anketa"):
         with st.spinner("Анализируем ответы..."):
             result = evaluate_risk(region, internet_score, cyber_score, psycho_score, behavior_score, family_score)
             
-            # Возрастная корректировка (пик 14-16 лет)
+            # Возрастная корректировка
             if 14 <= age <= 16:
                 result['risk_percent'] = min(100, result['risk_percent'] * 1.1)
             elif age <= 12:
@@ -309,20 +415,23 @@ with st.form("anketa"):
                 'family': family_score
             }
             
-            recommendations = get_detailed_recommendations(scores, result['risk_level'], result['risk_percent'], age, gender)
+            recommendations = get_recommendations(scores, result['risk_level'], result['risk_percent'])
             
             st.markdown("---")
             st.markdown("## 📊 Результат оценки")
             
-            # Отображение результата
-            if result['risk_level'] == 'high':
-                st.markdown(f'<div class="risk-high"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🔴 ВЫСОКИЙ РИСК</div><div style="margin-top: 0.5rem;">Регион: {region} (риск {result["region_risk_score"]*100:.0f}%)</div></div>', unsafe_allow_html=True)
-            elif result['risk_level'] == 'medium':
-                st.markdown(f'<div class="risk-medium"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟡 СРЕДНИЙ РИСК</div><div style="margin-top: 0.5rem;">Регион: {region} (риск {result["region_risk_score"]*100:.0f}%)</div></div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="risk-low"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟢 НИЗКИЙ РИСК</div><div style="margin-top: 0.5rem;">Регион: {region} (риск {result["region_risk_score"]*100:.0f}%)</div></div>', unsafe_allow_html=True)
+            # Результат
+            region_level = REGION_LEVEL.get(region, 'средний')
+            region_icon = "🔴" if region_level == 'высокий' else "🟡" if region_level == 'средний' else "🟢"
             
-            # График баллов по категориям
+            if result['risk_level'] == 'high':
+                st.markdown(f'<div class="risk-high"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🔴 ВЫСОКИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}% ({region_level})</div></div>', unsafe_allow_html=True)
+            elif result['risk_level'] == 'medium':
+                st.markdown(f'<div class="risk-medium"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟡 СРЕДНИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}% ({region_level})</div></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="risk-low"><div class="risk-percent">{result["risk_percent"]:.0f}%</div><div>🟢 НИЗКИЙ РИСК</div><div style="margin-top: 0.5rem;">{region_icon} {region}: риск региона {result["region_risk_score"]*100:.0f}% ({region_level})</div></div>', unsafe_allow_html=True)
+            
+            # График
             fig, ax = plt.subplots(figsize=(8, 5))
             categories = ['Интернет', 'Кибербуллинг', 'Психология', 'Поведение', 'Семья']
             values = [internet_score, cyber_score, psycho_score, behavior_score, family_score]
@@ -349,5 +458,17 @@ with st.form("anketa"):
                 else:
                     st.markdown(f'<div class="rec-success"><strong>{rec["title"]}</strong><br>{rec["text"]}</div>', unsafe_allow_html=True)
             
+            # Контакты служб ПО РЕГИОНУ
+            services = get_services(region)
+            st.markdown("## 📞 Куда обратиться в вашем регионе")
+            st.markdown(f"""
+            <div style="background: #f0f4ff; padding: 1.5rem; border-radius: 16px;">
+                <p><strong>🏢 {services['local_center']}</strong></p>
+                <p>📞 <strong>Детский телефон доверия:</strong> {services['child_helpline']}</p>
+                <p>🧠 <strong>Психологическая помощь:</strong> {services['psychology']}</p>
+                <p>🤝 <strong>Социальная помощь:</strong> {services['social']}</p>
+                <p>🚨 <strong>Экстренная помощь:</strong> {services['emergency']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
             st.info("📞 Если вы в кризисной ситуации, немедленно позвоните: **8-800-2000-122** или **112**")
-
