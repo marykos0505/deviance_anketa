@@ -9,7 +9,6 @@ st.set_page_config(page_title="Оценка риска девиантного п
 @st.cache_data
 def load_region_data():
     df = pd.read_excel('датасет_регионы.xlsx')
-    # Используем колонки: region, risk_score, risk_level
     df = df.dropna(subset=['region', 'risk_score'])
     
     region_risk = dict(zip(df['region'], df['risk_score']))
